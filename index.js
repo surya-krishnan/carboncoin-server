@@ -223,6 +223,26 @@ function buyProduct(db, senderID, productID, callback) {
     })
 }
 
+function getInventory(db, userID, callback) {
+    const inventory = db.collection('inventory')
+
+    inventory
+        .find({})
+        .project({name: 1, carbonCost: 1, cashCost: 1, leftInStock:1})
+        .toArray( function (err, docs) {
+            callback(docs)
+        })
+}
+
+app.get('/store/inventory', function (req, res) {
+    const db = client.db(dbName)
+    let userID = new mongo.ObjectID(jwt.verify(req.headers.auth, key)._id)
+    console.log("Getting inventory**")
+    getInventory(db, userID, function (inv) {
+        res.send(inv)
+    })
+})
+
 app.get('/store/product/:productID', function (req, res) {
     let db = client.db(dbName)
     let senderID = new mongo.ObjectID(jwt.verify(req.headers.auth, key)._id)
