@@ -18,7 +18,6 @@ client.connect(function (err, client) {
         .toArray(function (err, docs) {
             console.log(docs)
             console.log(docs[0])
-           //fdsa
             // client.close(false, console.log("closed first client"))
         })
 })
