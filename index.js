@@ -81,7 +81,7 @@ function logTransaction(db, senderID, recipientID, ccTransfer, cashTransfer, cal
     getUserBalance(db, senderID, function (senderBalance) {
         let senderCashBalance = senderBalance.balance
 
-        if (cashTransfer > senderBalance) {
+        if (cashTransfer > senderCashBalance) {
             callback(418)
         } else {
             callback(200)
