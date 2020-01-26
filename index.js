@@ -14,7 +14,7 @@ const key = fs.readFileSync('dev.key')
 // ****************************************************************************
 // Token validation middleware
 app.use(function (req, res, next) {
-    console.log((req.method === "GET" && req.url === "/auth"))
+    console.log((req.method === "GET" && req.url === "/auth") || (req.method === "POST" && req.url === "/users"))
     if ((req.method === "GET" && req.url === "/auth") || (req.method === "POST" && req.url === "/users")) {
         next()
     } else {
@@ -63,74 +63,48 @@ app.get('/balance', function (req, res) {
 // ****************************************************************************
 // Transactions
 
-function getUserID(db, userID, callback) {
+function getUserID(db, username, callback) {
     const users = db.collection('users')
 
     users
-        .find({_id: userID})
-        .project({balance: 1, ccbalance: 1, _id: 0})
+        .find({name: username})
+        .project({_id: 1})
         .toArray(function (err, docs) {
-            callback(docs[0])
+            callback(docs[0]._id)
         })
 }
 
-function getUser(db, user, callback) {
-    const users = db.collection('users')
-
-    users
-        .find({name: user})
-        .project({balance: 1, ccbalance: 1, _id: 0})
-        .toArray(function (err, docs) {
-            callback(docs[0])
-        })
-}
-
-function logTransaction(db, senderID, recipient, ccTransfer, cashTransfer, callback) {
+function logTransaction(db, senderID, recipientID, ccTransfer, cashTransfer, callback) {
     const transactions = db.collection('transactions')
     const users = db.collection('users')
 
-    getUserID(db, senderID, function (acc) {
-        if (acc.balance >= cashTransfer) {
-            console.log("enuff")
+    getUserBalance(db, senderID, function (senderBalance) {
+        let senderCashBalance = senderBalance.balance
+
+        if (cashTransfer > senderBalance) {
+            callback(418)
+        } else {
+            callback(200)
+
             transactions
                 .insertOne({
-                        sender: senderID,
-                        recipient: recipient,
-                        cashtransfer: cashTransfer,
-                        cctransfer: ccTransfer
-                    }, {},
-                    function (err, docs) {
-                        callback(200)
-                    })
-            users
-                .updateOne(
-                    {_id: senderID},
-                    {
-                        $set: {
-                            balance: (acc.balance - cashTransfer),
-                            ccbalance: (acc.ccbalance + ccTransfer)
-                        }
-                    },
-                    {}, function (err, docs) {
-                        console.log("sender updated")
-                        getUser(db, recipient, function (acc) {
-                            users
-                                .updateOne(
-                                    {name: recipient},
-                                    {
-                                        $set: {
-                                            balance: (acc.balance + cashTransfer),
-                                            ccbalance: (acc.ccbalance - ccTransfer)
-                                        }
-                                    },
-                                    {}, function (err, docs) {
-                                        console.log("recip updated")
-                                    })
-                        })
-                    })
-        } else {
-            console.log("not enuff")
-            callback(418)
+                    sender: senderID,
+                    recipient: recipientID,
+                    cashtransfer: cashTransfer,
+                    cctransfer: ccTransfer
+                })
+            users.updateOne({_id: senderID}, {
+                $inc: {
+                    balance: -cashTransfer,
+                    ccbalance: ccTransfer
+                }
+            })
+            users.updateOne({_id: recipientID}, {
+                $inc: {
+                    balance: cashTransfer,
+                    ccbalance: -ccTransfer
+                }
+            })
         }
     })
 }
@@ -138,8 +112,9 @@ function logTransaction(db, senderID, recipient, ccTransfer, cashTransfer, callb
 app.post('/transactions', function (req, res) {
     let db = client.db(dbName)
     let senderID = new mongo.ObjectID(jwt.verify(req.headers.auth, key)._id)
+    let recipientID = new mongo.ObjectID(req.body.recipientID)
 
-    logTransaction(db, senderID, req.body.recip, req.body.cc, req.body.cash, function (tf) {
+    logTransaction(db, senderID, recipientID, req.body.cc, req.body.cash, function (tf) {
         res.status(tf).send()
     })
 })
@@ -154,7 +129,7 @@ function getUserTransactions(db, id, callback) {
                 {recipient: id}
             ]
         })
-        .project({sender: 1, recipient: 1, cashtransfer: 1, cctransfer: 1, _id: 0})
+        .project({sender: 1, recipient: 1, cashtransfer: 1, cctransfer: 1, _id: 1})
         .toArray(function (err, docs) {
             console.log(docs)
             callback(docs)
@@ -164,7 +139,9 @@ function getUserTransactions(db, id, callback) {
 app.get('/transactions', function (req, res) {
     console.log("Querying " + req.body.username + "\'s balance.")
     const db = client.db(dbName)
-    getUserTransactions(db, req.body.username, function (transactions) {
+    let userID = new mongo.ObjectID(jwt.verify(req.headers.auth, key)._id)
+
+    getUserTransactions(db, userID, function (transactions) {
         res.send(transactions)
     })
 })
@@ -181,7 +158,8 @@ function createNewUser(db, username, password, callback) {
         ccbalance: 0.0,
         balance: 0.0
     }, {}, function (err, docs) {
-        callback()
+        console.log(docs.ops[0])
+        callback(docs.ops[0]._id)
     })
 }
 
@@ -190,8 +168,8 @@ app.post('/users', function (req, res) {
 
     const db = client.db(dbName)
 
-    createNewUser(db, req.body.username, req.body.password, function () {
-        res.status(200).send()
+    createNewUser(db, req.body.username, req.body.password, function (newUID) {
+        res.status(200).send(newUID)
     })
 })
 
