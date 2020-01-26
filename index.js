@@ -8,18 +8,8 @@ const dbName = "CarbonCoinDev"
 const client = new MongoClient(uri, {useNewUrlParser: true, useUnifiedTopology: true});
 
 
-client.connect(function (err, client) {
-    const db = client.db(dbName)
-    const collection = db.collection('users')
-
-    collection
-        .find({name: 'philnic'})
-        .project({_id: 1})
-        .toArray(function (err, docs) {
-            console.log(docs)
-            console.log(docs[0])
-            // client.close(false, console.log("closed first client"))
-        })
+client.connect(function () {
+    client.db(dbName)
 })
 
 // ****************************************************************************
@@ -38,30 +28,28 @@ function getUserBalance(db, user, pass, callback) {
 }
 
 app.get('/users/:username/balance', function (req, res) {
-    client.connect(function (err, client) {
-        console.log("Querying " + req.params.username + '\'s balance.')
+    console.log("Querying " + req.params.username + '\'s balance.')
 
-        const db = client.db(dbName);
+    const db = client.db(dbName);
 
-        getUserBalance(db, req.params.username, req.body.pass, function (balance) {
-            res.send(balance[0])
-            client.close()
-        })
-    });
+    getUserBalance(db, req.params.username, req.body.pass, function (balance) {
+        res.send(balance[0])
+    })
 })
 
 // ****************************************************************************
 // Transactions
 
-function getUserTransactions(db,id, callback) {
+function getUserTransactions(db, id, callback) {
     const trnsactn = db.collection('transactions')
 
     trnsactn
         .find({
-            $or:[
-            {sender: id},
-            {recipient: id}
-            ]})
+            $or: [
+                {sender: id},
+                {recipient: id}
+            ]
+        })
         .project({sender: 1, recipient: 1, cashtransfer: 1, cctransfer: 1, _id: 0})
         .toArray(function (err, docs) {
             console.log(docs)
@@ -70,13 +58,10 @@ function getUserTransactions(db,id, callback) {
 }
 
 app.get('/users/:username/transactions', function (req, res) {
-    client.connect(function (err, client) {
-        console.log("Querying " + req.params.username + "'s balance.")
-        const db = client.db(dbName)
-        getUserTransactions(db,req.params.username, function (transactions) {
-            res.send(transactions)
-            client.close()
-        })
+    console.log("Querying " + req.params.username + "'s balance.")
+    const db = client.db(dbName)
+    getUserTransactions(db, req.params.username, function (transactions) {
+        res.send(transactions)
     })
 })
 
@@ -97,15 +82,12 @@ function createNewUser(db, username, password, callback) {
 }
 
 app.post('/users/:username', function (req, res) {
-    client.connect(function (err, client) {
-        console.log("Creating a new user: " + req.params.username)
+    console.log("Creating a new user: " + req.params.username)
 
-        const db = client.db(dbName)
+    const db = client.db(dbName)
 
-        createNewUser(db, req.params.username, req.body.pass, function () {
-            res.status(200).send()
-            client.close()
-        })
+    createNewUser(db, req.params.username, req.body.pass, function () {
+        res.status(200).send()
     })
 })
 
@@ -113,24 +95,22 @@ function deleteUser(db, username, password, callback) {
     const users = db.collection('users')
 
     users.deleteOne({
-        name: username,
-        pass: password},
+            name: username,
+            pass: password
+        },
         {}, function (err, docs) {
             callback()
         })
 }
 
 app.post('/users/:username/delete', function (req, res) {
-    client.connect(function (err, client) {
-        console.log("Deleting user: " + req.params.username)
+    console.log("Deleting user: " + req.params.username)
 
-        const db = client.db(dbName)
+    const db = client.db(dbName)
 
-        deleteUser(db, req.params.username, req.body.pass, function() {
-            res.status(200).send()
-            client.close()
-        })
-    })    
+    deleteUser(db, req.params.username, req.body.pass, function () {
+        res.status(200).send()
+    })
 })
 
 // ****************************************************************************
@@ -142,26 +122,24 @@ function authenticateUser(db, username, password, callback) {
         .find({name: username, pass: password})
         .project({_id: 1})
         .toArray(function (err, docs) {
-            console.log(docs.length)
+            console.log(docs)
             callback(docs.length === 1)
         })
 }
 
 app.get('/auth/user/:username', function (req, res) {
-    client.connect(function (err, client) {
-        console.log("Authenticating " + req.params.username)
+    console.log("Authenticating " + req.params.username)
 
-        const db = client.db(dbName);
+    const db = client.db(dbName);
 
-        authenticateUser(db, req.params.username, req.body.pass, function (authenticated) {
-            if (authenticated) {
-                res.status(200).send()
-            } else {
-                res.status(403).send()
-            }
-
-            client.close()
-        })
+    authenticateUser(db, req.params.username, req.body.pass, function (authenticated) {
+        if (authenticated) {
+            res.status(200).send()
+            console.log("Successful")
+        } else {
+            res.status(403).send()
+            console.log("Failed")
+        }
     })
 })
 
