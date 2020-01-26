@@ -22,6 +22,7 @@ app.use(function (req, res, next) {
     } else {
         try {
             console.log("\tValidating token:")
+            console.log(req.headers.auth)
             jwt.verify(req.headers.auth, key)
             console.log("\t\tSuccess")
             next()
@@ -58,7 +59,7 @@ function getUserBalance(db, userID, callback) {
 
     users
         .find({_id: userID})
-        .project({balance: 1, ccbalance: 1, _id: 0})
+        .project({balance: 1, carbonBalance: 1, _id: 0})
         .toArray(function (err, docs) {
             callback(docs[0])
         })
@@ -77,7 +78,7 @@ app.get('/balance', function (req, res) {
 // ****************************************************************************
 // Transactions
 
-function logTransaction(db, senderID, recipientID, ccTransfer, cashTransfer, callback) {
+function logTransaction(db, senderID, recipientID, carbonTransfer, cashTransfer, callback) {
     const transactions = db.collection('transactions')
     const users = db.collection('users')
 
@@ -93,19 +94,19 @@ function logTransaction(db, senderID, recipientID, ccTransfer, cashTransfer, cal
                 .insertOne({
                     sender: senderID,
                     recipient: recipientID,
-                    cashtransfer: cashTransfer,
-                    cctransfer: ccTransfer
+                    cashTransfer: cashTransfer,
+                    carbonTransfer: carbonTransfer
                 })
             users.updateOne({_id: senderID}, {
                 $inc: {
                     balance: -cashTransfer,
-                    ccbalance: ccTransfer
+                    carbonBalance: carbonTransfer
                 }
             })
             users.updateOne({_id: recipientID}, {
                 $inc: {
                     balance: cashTransfer,
-                    ccbalance: -ccTransfer
+                    carbonBalance: -carbonTransfer
                 }
             })
         }
@@ -114,11 +115,13 @@ function logTransaction(db, senderID, recipientID, ccTransfer, cashTransfer, cal
 
 app.post('/transactions', function (req, res) {
     let db = client.db(dbName)
+    console.log(req.body)
+    console.log('id')
     let senderID = new mongo.ObjectID(jwt.verify(req.headers.auth, key)._id)
     let recipientID = new mongo.ObjectID(req.body.recipientID)
 
     console.log("\tLogging transaction between sender " + senderID + " and recipient " + recipientID)
-    logTransaction(db, senderID, recipientID, req.body.cc, req.body.cash, function (tf) {
+    logTransaction(db, senderID, recipientID, req.body.carbon, req.body.cash, function (tf) {
         res.status(tf).send()
     })
 })
@@ -133,8 +136,13 @@ function getUserTransactions(db, id, callback) {
                 {recipient: id}
             ]
         })
-        .project({sender: 1, recipient: 1, cashtransfer: 1, cctransfer: 1, _id: 1})
+        .project({sender: 1, recipient: 1, cashTransfer: 1, carbonTransfer: 1, _id: 1})
         .toArray(function (err, docs) {
+            console.log(docs[0].cashTransfer)
+            for (i = 0; i++; i < docs.length) {
+                console.log(docs[i])
+                docs[i].testvar = "test"
+            }
             callback(docs)
         })
 }
@@ -237,7 +245,7 @@ function createNewUser(db, username, password, callback) {
     users.insertOne({
         name: username,
         pass: password,
-        ccbalance: 0.0,
+        carbonBalance: 0.0,
         balance: 0.0
     }, {}, function (err, docs) {
         callback(docs.ops[0]._id)
@@ -272,6 +280,7 @@ app.delete('/users', function (req, res) {
     console.log("\tDeleting user " + userID)
     deleteUser(db, userID, function (err) {
         console.log("\t\tSuccess")
+        res.status(200).send()
     })
 })
 
