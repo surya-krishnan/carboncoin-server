@@ -39,6 +39,17 @@ client.connect(function () {
     client.db(dbName)
 })
 
+function getUserName(db, userID, callback) {
+    let users = db.collection('users')
+
+    users
+        .find({_id: userID})
+        .project({name: 1, _id: 0})
+        .toArray(function (err, docs) {
+            callback(docs[0].name)
+        })
+}
+
 // ****************************************************************************
 // Balance
 
@@ -134,6 +145,30 @@ app.get('/transactions', function (req, res) {
 
     console.log("\tGetting " + userID + "\'s transactions.")
     getUserTransactions(db, userID, function (transactions) {
+        res.send(transactions)
+    })
+})
+
+function getTransactionsViewable(db, id, callback) {
+    getUserTransactions(db, id, function (transactions) {
+        for (i = 0; i < transactions.length; i++) {
+            console.log(transactions[i].sender)
+            getUserName(db, transactions[i].sender, function (name) {
+                transactions[i].sender = name
+            })
+            getUserName(db, transactions[i].recipient, function (name) {
+                transactions[i].recipient = name
+            })
+        }
+        callback(transactions)
+    })
+}
+
+app.get('/transactions/viewable', function (req, res) {
+    const db = client.db(dbName)
+    let userID = new mongo.ObjectID(jwt.verify(req.headers.auth, key)._id)
+    console.log("\tGetting " + userID + "\'s transactions. Viewable**")
+    getTransactionsViewable(db, userID, function (transactions) {
         res.send(transactions)
     })
 })
