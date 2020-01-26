@@ -22,6 +22,9 @@ client.connect(function (err, client) {
         })
 })
 
+// ****************************************************************************
+// Balance
+
 function getUserBalance(db, user, pass, callback) {
     const users = db.collection('users')
 
@@ -33,6 +36,22 @@ function getUserBalance(db, user, pass, callback) {
             callback(docs)
         })
 }
+
+app.get('/users/:username/balance', function (req, res) {
+    client.connect(function (err, client) {
+        console.log("Querying " + req.params.username + '\'s balance.')
+
+        const db = client.db(dbName);
+
+        getUserBalance(db, req.params.username, req.body.pass, function (balance) {
+            res.send(balance[0])
+            client.close()
+        })
+    });
+})
+
+// ****************************************************************************
+// Transactions
 
 function getUserTransactions(db,id, callback) {
     const trnsactn = db.collection('transactions')
@@ -50,6 +69,20 @@ function getUserTransactions(db,id, callback) {
         })
 }
 
+app.get('/users/:username/transactions', function (req, res) {
+    client.connect(function (err, client) {
+        console.log("Querying " + req.params.username + "'s balance.")
+        const db = client.db(dbName)
+        getUserTransactions(db,req.params.username, function (transactions) {
+            res.send(transactions)
+            client.close()
+        })
+    })
+})
+
+// ****************************************************************************
+// Create/Delete Users
+
 function createNewUser(db, username, password, callback) {
     const users = db.collection('users')
 
@@ -61,29 +94,6 @@ function createNewUser(db, username, password, callback) {
     }, {}, function (err, docs) {
         callback()
     })
-}
-
-function deleteUser(db, username, password, callback) {
-    const users = db.collection('users')
-
-    users.deleteOne({
-        name: username,
-        pass: password},
-        {}, function (err, docs) {
-            callback()
-        })
-}
-
-function authenticateUser(db, username, password, callback) {
-    const users = db.collection('users')
-
-    users
-        .find({name: username, pass: password})
-        .project({_id: 1})
-        .toArray(function (err, docs) {
-            console.log(docs.length)
-            callback(docs.length === 1)
-        })
 }
 
 app.post('/users/:username', function (req, res) {
@@ -99,6 +109,17 @@ app.post('/users/:username', function (req, res) {
     })
 })
 
+function deleteUser(db, username, password, callback) {
+    const users = db.collection('users')
+
+    users.deleteOne({
+        name: username,
+        pass: password},
+        {}, function (err, docs) {
+            callback()
+        })
+}
+
 app.post('/users/:username/delete', function (req, res) {
     client.connect(function (err, client) {
         console.log("Deleting user: " + req.params.username)
@@ -112,29 +133,19 @@ app.post('/users/:username/delete', function (req, res) {
     })    
 })
 
-app.get('/users/:username/balance', function (req, res) {
-    client.connect(function (err, client) {
-        console.log("Querying " + req.params.username + '\'s balance.')
+// ****************************************************************************
 
-        const db = client.db(dbName);
+function authenticateUser(db, username, password, callback) {
+    const users = db.collection('users')
 
-        getUserBalance(db, req.params.username, req.body.pass, function (balance) {
-            res.send(balance[0])
-            client.close()
+    users
+        .find({name: username, pass: password})
+        .project({_id: 1})
+        .toArray(function (err, docs) {
+            console.log(docs.length)
+            callback(docs.length === 1)
         })
-    });
-})
-
-app.get('/users/:username/transactions', function (req, res) {
-    client.connect(function (err, client) {
-        console.log("Querying " + req.params.username + "'s balance.")
-        const db = client.db(dbName)
-        getUserTransactions(db,req.params.username, function (transactions) {
-            res.send(transactions)
-            client.close()
-        })
-    })
-})
+}
 
 app.get('/auth/user/:username', function (req, res) {
     client.connect(function (err, client) {
@@ -154,6 +165,7 @@ app.get('/auth/user/:username', function (req, res) {
     })
 })
 
+// ****************************************************************************
 app.listen(3000, () => {
     console.log("Server running on port 3000")
 })
