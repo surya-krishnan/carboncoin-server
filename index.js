@@ -1,5 +1,5 @@
-var express = require("express")
-var app = express()
+let express = require("express")
+let app = express()
 app.use(express.json())
 
 const MongoClient = require('mongodb').MongoClient
@@ -19,11 +19,33 @@ function getUserBalance(db, user, pass, callback) {
         })
 }
 
+function createNewUser(db, username, password, callback) {
+    const users = db.collection('users')
+
+    users.insertOne({
+        name: username,
+        pass: password,
+        ccbalance: 0.0,
+        balance: 0.0
+    }, {}, function (err, docs) {
+        callback()
+    })
+}
+
+app.post('/users/:username', function (req, res) {
+    client.connect(function (err, client) {
+        const db = client.db(dbName);
+
+        createNewUser(db, req.params.username, req.body.pass, function () {
+            res.status(200).send()
+            client.close()
+        })
+    })
+})
 
 app.get('/users/:username/balance', function (req, res) {
-
     client.connect(function (err, client) {
-        console.log("Connected correctly to server");
+        console.log("Querying " + req.params.username + '\'s balance.');
 
         const db = client.db(dbName);
 
