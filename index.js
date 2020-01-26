@@ -56,7 +56,7 @@ app.get('/balance', function (req, res) {
     const db = client.db(dbName);
 
     getUserBalance(db, jwt.verify(req.headers.auth, key)._id, function (balance) {
-        res.send(balance[0])
+        res.send(balance)
     })
 })
 
