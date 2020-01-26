@@ -29,7 +29,7 @@ function getUserBalance(db, user, pass, callback) {
 
 app.get('/users/:username/balance', function (req, res) {
     console.log("Querying " + req.params.username + '\'s balance.')
-
+    console.log("password: " + req.body.pass)
     const db = client.db(dbName);
 
     getUserBalance(db, req.params.username, req.body.pass, function (balance) {
@@ -39,6 +39,36 @@ app.get('/users/:username/balance', function (req, res) {
 
 // ****************************************************************************
 // Transactions
+
+function testMinimumBalance(db, user, amount, callback) {
+    const users = db.collection('users')
+
+    users
+        .find({name: user})
+        .project({balance: 1, _id: 0})
+        .toArray(function (err, docs) {
+            callback(docs[0].balance >= amount)
+        })
+}
+
+function logTransaction(db, sender, recipient, ccTransfer, cashTransfer) {
+    const transactions = db.collection('transactions')
+    const users = db.collection('users')
+
+    testMinimumBalance(db, sender, cashTransfer, function (enoughFunds) {
+        if (enoughFunds) {
+            console.log("enuff")
+        } else {
+            console.log("not enuff")
+        }
+    })
+}
+
+app.post('/users/:username/transactions', function (req, res) {
+    let db = client.db(dbName)
+
+    logTransaction(db, "philnic", "", 0, 500)
+})
 
 function getUserTransactions(db, id, callback) {
     const trnsactn = db.collection('transactions')
@@ -128,7 +158,8 @@ function authenticateUser(db, username, password, callback) {
 }
 
 app.get('/auth/user/:username', function (req, res) {
-    console.log("Authenticating " + req.params.username)
+    console.log(req.body)
+    console.log("Authenticating " + req.params.username + " with password: " + req.body.pass)
 
     const db = client.db(dbName);
 
