@@ -18,7 +18,6 @@ client.connect(function (err, client) {
         .toArray(function (err, docs) {
             console.log(docs)
             console.log(docs[0])
-           //fdsa
             // client.close(false, console.log("closed first client"))
         })
 })
@@ -29,6 +28,22 @@ function getUserBalance(db, user, pass, callback) {
     users
         .find({name: user, pass: pass})
         .project({balance: 1, ccbalance: 1, _id: 0})
+        .toArray(function (err, docs) {
+            console.log(docs)
+            callback(docs)
+        })
+}
+
+function getUserTransactions(db,id, callback) {
+    const trnsactn = db.collection('transactions')
+
+    trnsactn
+        .find({
+            $or:[
+            {sender: id},
+            {recipient: id}
+            ]})
+        .project({sender: 1, recipient: 1, cashtransfer: 1, cctransfer: 1, _id: 0})
         .toArray(function (err, docs) {
             console.log(docs)
             callback(docs)
@@ -87,6 +102,16 @@ app.get('/users/:username/balance', function (req, res) {
     });
 })
 
+app.get('/users/:username/transactions', function (req, res) {
+    client.connect(function (err, client) {
+        console.log("Querying " + req.params.username + "'s balance.")
+        const db = client.db(dbName)
+        getUserTransactions(db,req.params.username, function (transactions) {
+            res.send(transactions)
+            client.close()
+        })
+    })
+})
 app.get('/auth/user/:username', function (req, res) {
     client.connect(function (err, client) {
         console.log("Authenticating " + req.params.username)
