@@ -1,40 +1,40 @@
 var express = require("express")
 var app = express()
-const assert = require('assert');
+app.use(express.json())
 
 const MongoClient = require('mongodb').MongoClient
 const uri = "mongodb+srv://api:soorya@carboncoin-9pa4g.gcp.mongodb.net/test?retryWrites=true&w=majority"
 const dbName = "CarbonCoinDev"
-const client = new MongoClient(uri);
+const client = new MongoClient(uri, {useNewUrlParser: true, useUnifiedTopology: true});
 
-client.connect(function(err, client) {
-  //assert.equal(null, err);
-  console.log("Connected correctly to server");
 
-  const db = client.db(dbName);
-  findUsers(db, function() {
-    client.close();
-  });
-});
+function getUserBalance(db, user, pass, callback) {
+    const collection = db.collection('users')
 
-function findUsers(db, callback) {
-    const collec = db.collection('users')
-    collec
-        .find({})
-        .project({UID: 1, name: 1, _id: 0})
-        .toArray(function(err, docs) {
-            //assert.equal(err, null)
-            console.log("Found the following records")
-            console.log(docs)
-            callback(docs)
-          })
+    collection
+        .find({name: user, pass: pass})
+        .project({balance: 1, ccBalance: 1, _id: 0})
+        .toArray(function (err, docs) {
+            callback(db, docs)
+        })
 }
-      
-  
-app.get('/', function (req, res) {
-    res.send('hello world')
+
+
+app.get('/users/:username/balance', function (req, res) {
+
+    client.connect(function (err, client) {
+        console.log("Connected correctly to server");
+
+        const db = client.db(dbName);
+
+        getUserBalance(db, req.params.username, req.body.pass, function (db, balance) {
+            res.send(balance[0])
+            client.close()
+        })
+    });
 })
 
+
 app.listen(3000, () => {
- console.log("Server running on port 3000")
+    console.log("Server running on port 3000")
 })
