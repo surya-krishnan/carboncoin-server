@@ -138,10 +138,8 @@ function getUserTransactions(db, id, callback) {
         })
         .project({sender: 1, recipient: 1, cashTransfer: 1, carbonTransfer: 1, _id: 1})
         .toArray(function (err, docs) {
-            console.log(docs[0].cashTransfer)
-            for (i = 0; i++; i < docs.length) {
-                console.log(docs[i])
-                docs[i].testvar = "test"
+            for (i = 0; i < docs.length; i++) {
+                docs[i].timestamp = new mongo.ObjectID(docs[i]._id).getTimestamp()
             }
             callback(docs)
         })
