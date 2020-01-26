@@ -42,7 +42,6 @@ client.connect(function () {
 
 function getUserName(db, userID, callback) {
     let users = db.collection('users')
-
     users
         .find({_id: userID})
         .project({name: 1, _id: 0})
@@ -64,6 +63,7 @@ function getUserBalance(db, userID, callback) {
             callback(docs[0])
         })
 }
+
 
 app.get('/balance', function (req, res) {
     const db = client.db(dbName);
@@ -89,25 +89,30 @@ function logTransaction(db, senderID, recipientID, carbonTransfer, cashTransfer,
             callback(418)
         } else {
             callback(200)
-
-            transactions
-                .insertOne({
-                    sender: senderID,
-                    recipient: recipientID,
-                    cashTransfer: cashTransfer,
-                    carbonTransfer: carbonTransfer
+            getUserName(db, senderID, function (name) {
+                getUserName(db, recipientID, function (rName) {
+                    transactions
+                        .insertOne({
+                            sender: senderID,
+                            recipient: recipientID,
+                            cashTransfer: cashTransfer,
+                            carbonTransfer: carbonTransfer,
+                            senderName: name,
+                            recipientName: rName
+                        })
+                    users.updateOne({_id: senderID}, {
+                        $inc: {
+                            balance: -cashTransfer,
+                            carbonBalance: carbonTransfer
+                        }
+                    })
+                    users.updateOne({_id: recipientID}, {
+                        $inc: {
+                            balance: cashTransfer,
+                            carbonBalance: -carbonTransfer
+                        }
+                    })
                 })
-            users.updateOne({_id: senderID}, {
-                $inc: {
-                    balance: -cashTransfer,
-                    carbonBalance: carbonTransfer
-                }
-            })
-            users.updateOne({_id: recipientID}, {
-                $inc: {
-                    balance: cashTransfer,
-                    carbonBalance: -carbonTransfer
-                }
             })
         }
     })
@@ -156,18 +161,22 @@ app.get('/transactions', function (req, res) {
 })
 
 function getTransactionsViewable(db, id, callback) {
-    getUserTransactions(db, id, function (transactions) {
-        for (i = 0; i < transactions.length; i++) {
-            console.log(transactions[i].sender)
-            getUserName(db, transactions[i].sender, function (name) {
-                transactions[i].sender = name
-            })
-            getUserName(db, transactions[i].recipient, function (name) {
-                transactions[i].recipient = name
-            })
-        }
-        callback(transactions)
-    })
+    const transactions = db.collection('transactions')
+
+    transactions
+        .find({
+            $or: [
+                {sender: id},
+                {recipient: id}
+            ]
+        })
+        .project({senderName: 1, recipientName: 1, cashTransfer: 1, carbonTransfer: 1, _id: 1})
+        .toArray(function (err, docs) {
+            for (i = 0; i < docs.length; i++) {
+                docs[i].timestamp = new mongo.ObjectID(docs[i]._id).getTimestamp()
+            }
+            callback(docs)
+        })
 }
 
 app.get('/transactions/viewable', function (req, res) {
@@ -177,6 +186,10 @@ app.get('/transactions/viewable', function (req, res) {
     getTransactionsViewable(db, userID, function (transactions) {
         res.send(transactions)
     })
+    //getUserName(db,userID, function (name) {
+    //  console.log(name)
+    // res.status(200).send()
+    // })
 })
 
 function getProduct(db, productID, callback) {
