@@ -34,6 +34,8 @@ function createNewUser(db, username, password, callback) {
 
 app.post('/users/:username', function (req, res) {
     client.connect(function (err, client) {
+        console.log("Creating a new user: " + req.params.username)
+
         const db = client.db(dbName);
 
         createNewUser(db, req.params.username, req.body.pass, function () {
