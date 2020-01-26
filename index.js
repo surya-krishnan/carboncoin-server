@@ -14,14 +14,19 @@ const key = fs.readFileSync('dev.key')
 // ****************************************************************************
 // Token validation middleware
 app.use(function (req, res, next) {
-    console.log((req.method === "GET" && req.url === "/auth") || (req.method === "POST" && req.url === "/users"))
+
+    console.log("\n\nIncoming " + req.method + " query on " + req.url)
     if ((req.method === "GET" && req.url === "/auth") || (req.method === "POST" && req.url === "/users")) {
+        console.log("\tSkipped token validation.")
         next()
     } else {
         try {
+            console.log("\tValidating token:")
             jwt.verify(req.headers.auth, key)
+            console.log("\t\tSuccess")
             next()
         } catch (err) {
+            console.log("\t\tFailure")
             res.status(403).send()
         }
     }
@@ -37,42 +42,29 @@ client.connect(function () {
 // ****************************************************************************
 // Balance
 
-function getUserBalance(db, _id, callback) {
+function getUserBalance(db, userID, callback) {
     let users = db.collection('users')
-    let idObject = new mongo.ObjectID(_id)
 
     users
-        .find({_id: idObject})
+        .find({_id: userID})
         .project({balance: 1, ccbalance: 1, _id: 0})
         .toArray(function (err, docs) {
-            console.log(docs)
             callback(docs[0])
         })
 }
 
 app.get('/balance', function (req, res) {
-    //console.log("Querying " + req.params.username + '\'s balance.')
-    //console.log("password: " + req.body.pass)
     const db = client.db(dbName);
+    let userID = new mongo.ObjectID(jwt.verify(req.headers.auth, key)._id)
 
-    getUserBalance(db, jwt.verify(req.headers.auth, key)._id, function (balance) {
+    console.log("\tQuerying " + userID + '\'s balance.')
+    getUserBalance(db, userID, function (balance) {
         res.send(balance)
     })
 })
 
 // ****************************************************************************
 // Transactions
-
-function getUserID(db, username, callback) {
-    const users = db.collection('users')
-
-    users
-        .find({name: username})
-        .project({_id: 1})
-        .toArray(function (err, docs) {
-            callback(docs[0]._id)
-        })
-}
 
 function logTransaction(db, senderID, recipientID, ccTransfer, cashTransfer, callback) {
     const transactions = db.collection('transactions')
@@ -114,15 +106,16 @@ app.post('/transactions', function (req, res) {
     let senderID = new mongo.ObjectID(jwt.verify(req.headers.auth, key)._id)
     let recipientID = new mongo.ObjectID(req.body.recipientID)
 
+    console.log("\tLogging transaction between sender " + senderID + " and recipient " + recipientID)
     logTransaction(db, senderID, recipientID, req.body.cc, req.body.cash, function (tf) {
         res.status(tf).send()
     })
 })
 
 function getUserTransactions(db, id, callback) {
-    const trnsactn = db.collection('transactions')
+    const transactions = db.collection('transactions')
 
-    trnsactn
+    transactions
         .find({
             $or: [
                 {sender: id},
@@ -131,16 +124,15 @@ function getUserTransactions(db, id, callback) {
         })
         .project({sender: 1, recipient: 1, cashtransfer: 1, cctransfer: 1, _id: 1})
         .toArray(function (err, docs) {
-            console.log(docs)
             callback(docs)
         })
 }
 
 app.get('/transactions', function (req, res) {
-    console.log("Querying " + req.body.username + "\'s balance.")
     const db = client.db(dbName)
     let userID = new mongo.ObjectID(jwt.verify(req.headers.auth, key)._id)
 
+    console.log("\tGetting " + userID + "\'s transactions.")
     getUserTransactions(db, userID, function (transactions) {
         res.send(transactions)
     })
@@ -158,13 +150,12 @@ function createNewUser(db, username, password, callback) {
         ccbalance: 0.0,
         balance: 0.0
     }, {}, function (err, docs) {
-        console.log(docs.ops[0])
         callback(docs.ops[0]._id)
     })
 }
 
 app.post('/users', function (req, res) {
-    console.log("Creating a new user: " + req.body.username)
+    console.log("\tCreating new user " + req.body.username)
 
     const db = client.db(dbName)
 
@@ -185,13 +176,12 @@ function deleteUser(db, uid, callback) {
 }
 
 app.delete('/users', function (req, res) {
-    console.log("Deleting user: " + req.body.username)
-
     const db = client.db(dbName)
-    let uid = new mongo.ObjectID(jwt.verify(req.headers.auth, key)._id)
+    let userID = new mongo.ObjectID(jwt.verify(req.headers.auth, key)._id)
 
-    deleteUser(db, uid, function () {
-        res.status(200).send()
+    console.log("\tDeleting user " + userID)
+    deleteUser(db, userID, function (err) {
+        console.log("\t\tSuccess")
     })
 })
 
@@ -205,7 +195,6 @@ function authenticateUser(db, username, password, callback) {
         .project({_id: 1})
         .toArray(function (err, docs) {
             if (docs.length >= 1) {
-                console.log(docs[0])
                 callback(true, docs[0]._id)
             } else {
                 callback(false)
@@ -214,17 +203,17 @@ function authenticateUser(db, username, password, callback) {
 }
 
 app.get('/auth', function (req, res) {
-    console.log(req.body)
-    console.log("Authenticating " + req.body.username + " with password: " + req.body.password)
+    console.log("\tAuthenticating " + req.body.username + " with password " + req.body.password)
 
     const db = client.db(dbName);
 
     authenticateUser(db, req.body.username, req.body.password, function (authenticated, authenticatedUserID) {
         if (authenticated) {
+            console.log("\t\tSuccess")
             res.status(200).send(jwt.sign({_id: authenticatedUserID}, key))
         } else {
             res.status(403).send()
-            console.log("Failed")
+            console.log("\t\tFailure")
         }
     })
 })
