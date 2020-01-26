@@ -63,6 +63,17 @@ function createNewUser(db, username, password, callback) {
     })
 }
 
+function deleteUser(db, username, password, callback) {
+    const users = db.collection('users')
+
+    users.deleteOne({
+        name: username,
+        pass: password},
+        {}, function (err, docs) {
+            callback()
+        })
+}
+
 function authenticateUser(db, username, password, callback) {
     const users = db.collection('users')
 
@@ -88,6 +99,18 @@ app.post('/users/:username', function (req, res) {
     })
 })
 
+app.post('/users/:username/delete', function (req, res) {
+    client.connect(function (err, client) {
+        console.log("Deleting user: " + req.params.username)
+
+        const db = client.db(dbName)
+
+        deleteUser(db, req.params.username, req.body.pass, function() {
+            res.status(200).send()
+            client.close()
+        })
+    })    
+})
 
 app.get('/users/:username/balance', function (req, res) {
     client.connect(function (err, client) {
@@ -112,6 +135,7 @@ app.get('/users/:username/transactions', function (req, res) {
         })
     })
 })
+
 app.get('/auth/user/:username', function (req, res) {
     client.connect(function (err, client) {
         console.log("Authenticating " + req.params.username)
@@ -129,7 +153,6 @@ app.get('/auth/user/:username', function (req, res) {
         })
     })
 })
-
 
 app.listen(3000, () => {
     console.log("Server running on port 3000")
