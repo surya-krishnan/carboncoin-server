@@ -16,7 +16,7 @@ const key = fs.readFileSync('dev.key')
 app.use(function (req, res, next) {
 
     console.log("\n\nIncoming " + req.method + " query on " + req.url)
-    if ((req.method === "GET" && req.url === "/auth") || (req.method === "POST" && req.url === "/users")) {
+    if ((req.method === "GET" && req.url === "/auth" || req.url.includes("/store/buy/product/")) || (req.method === "POST" && req.url === "/users")) {
         console.log("\tSkipped token validation.")
         next()
     } else {
@@ -187,17 +187,13 @@ app.get('/transactions/viewable', function (req, res) {
     getTransactionsViewable(db, userID, function (transactions) {
         res.send(transactions)
     })
-    //getUserName(db,userID, function (name) {
-    //  console.log(name)
-    // res.status(200).send()
-    // })
 })
 
 function getProduct(db, productID, callback) {
     const inv = db.collection('inventory')
     inv
         .find({_id: productID})
-        .project({instock: 1, carboncost: 1, cashcost: 1, _id: 0})
+        .project({leftInStock: 1, carbonCost: 1, cashCost: 1, _id: 0})
         .toArray(function (err, docs) {
             callback(docs[0])
         })
@@ -209,13 +205,13 @@ function buyProduct(db, senderID, productID, callback) {
     let idObject = new mongo.ObjectID(productID)
 
     getProduct(db, idObject, function (prod) {
-        console.log(prod.carboncost)
-        console.log(prod.instock)
-        if (prod.instock >= 1) {
+        console.log(prod.carbonCost)
+        console.log(prod.leftInStock)
+        if (prod.leftInStock >= 1) {
             inventory
                 .updateOne({_id: idObject},
-                    {$inc: {instock: -1}})
-            logTransaction(db, senderID, storeID, prod.carboncost, prod.cashcost, function (code) {
+                    {$inc: {leftInStock: -1}})
+            logTransaction(db, senderID, storeID, prod.carbonCost, prod.cashCost, function (code) {
                 callback(code)
             })
         } else {
@@ -224,22 +220,21 @@ function buyProduct(db, senderID, productID, callback) {
     })
 }
 
-function getInventory(db, userID, callback) {
+function getInventory(db, callback) {
     const inventory = db.collection('inventory')
 
     inventory
         .find({})
-        .project({name: 1, carbonCost: 1, cashCost: 1, leftInStock:1})
-        .toArray( function (err, docs) {
+        .project({name: 1, carbonCost: 1, cashCost: 1, leftInStock: 1, _id: 1})
+        .toArray(function (err, docs) {
             callback(docs)
         })
 }
 
 app.get('/store/inventory', function (req, res) {
     const db = client.db(dbName)
-    let userID = new mongo.ObjectID(jwt.verify(req.headers.auth, key)._id)
-    console.log("Getting inventory**")
-    getInventory(db, userID, function (inv) {
+    console.log("\tGetting inventory**")
+    getInventory(db, function (inv) {
         res.send(inv)
     })
 })
@@ -252,11 +247,21 @@ app.get('/store/product/:productID', function (req, res) {
     })
 })
 
+app.get('/store/buy/product/:productID?', function (req, res) {
+    let db = client.db(dbName)
+    console.log(req.query)
+    let token = req.query.t.replace(/_/g, ".")
+    let senderID = new mongo.ObjectID(jwt.verify(token, key)._id)
+    buyProduct(db, senderID, req.params.productID, function (code) {
+        res.status(code).send()
+    })
+})
+
 function restockProduct(db, productID, amount, callback) {
     const inv = db.collection('inventory')
     inv
         .updateOne({_id: productID},
-            {$inc: {instock: amount}})
+            {$inc: {leftInStock: amount}})
     callback(200)
 }
 
