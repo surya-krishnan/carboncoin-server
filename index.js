@@ -149,7 +149,7 @@ function getProduct(db, productID, callback) {
 }
 
 function buyProduct(db, senderID, productID, callback) {
-    const storeID = '5e2d6ebc1c9d4400009ea284'
+    const storeID = new mongo.ObjectID('5e2d6ebc1c9d4400009ea284')
     const inventory = db.collection('inventory')
     let idObject = new mongo.ObjectID(productID)
 
@@ -173,6 +173,22 @@ app.get('/store/product/:productID', function (req, res) {
     let db = client.db(dbName)
     let senderID = new mongo.ObjectID(jwt.verify(req.headers.auth, key)._id)
     buyProduct(db, senderID, req.params.productID, function (code) {
+        res.status(code).send()
+    })
+})
+
+function restockProduct(db, productID, amount, callback) {
+    const inv = db.collection('inventory')
+    inv
+        .updateOne({_id: productID},
+            {$inc: {instock: amount}})
+    callback(200)
+}
+
+app.post('/store/product/:productID', function (req, res) {
+    let db = client.db(dbName)
+    let idObject = new mongo.ObjectID(req.params.productID)
+    restockProduct(db, idObject, req.body.amount, function (code) {
         res.status(code).send()
     })
 })
