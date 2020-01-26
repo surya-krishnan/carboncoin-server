@@ -40,26 +40,54 @@ app.get('/users/:username/balance', function (req, res) {
 // ****************************************************************************
 // Transactions
 
-function testMinimumBalance(db, user, amount, callback) {
+function getUserBal(db, user, callback) {
     const users = db.collection('users')
 
     users
         .find({name: user})
-        .project({balance: 1, _id: 0})
+        .project({balance: 1, ccbalance: 1, _id: 0})
         .toArray(function (err, docs) {
-            callback(docs[0].balance >= amount)
+            callback(docs[0])
         })
 }
 
-function logTransaction(db, sender, recipient, ccTransfer, cashTransfer) {
+function logTransaction(db, sender, recipient, ccTransfer, cashTransfer, callback) {
     const transactions = db.collection('transactions')
     const users = db.collection('users')
 
-    testMinimumBalance(db, sender, cashTransfer, function (enoughFunds) {
-        if (enoughFunds) {
+    getUserBal(db, sender, function (acc) {
+        if (acc.balance >= cashTransfer) {
             console.log("enuff")
+            transactions
+                .insertOne({
+                    sender: sender,
+                    recipient: recipient,
+                    cashtransfer: cashTransfer,
+                    cctransfer: ccTransfer}, {},
+                function (err, docs) {
+                    callback(200)
+                })
+            users
+                .updateOne(
+                    {name: sender},
+                    {$set: {balance: (acc.balance - cashTransfer),
+                            ccbalance: (acc.ccbalance + ccTransfer)}},
+                    {}, function (err, docs) {
+                        console.log("sender updated")
+                        getUserBal(db, recipient, function (acc) {
+                            users
+                                .updateOne(
+                                    {name: recipient},
+                                    {$set: {balance: (acc.balance + cashTransfer),
+                                        ccbalance: (acc.ccbalance - ccTransfer)}},
+                                    {}, function (err,docs) {
+                                        console.log("recip updated")
+                                    })
+                        })
+                    })
         } else {
             console.log("not enuff")
+            callback(418)
         }
     })
 }
@@ -67,7 +95,9 @@ function logTransaction(db, sender, recipient, ccTransfer, cashTransfer) {
 app.post('/users/:username/transactions', function (req, res) {
     let db = client.db(dbName)
 
-    logTransaction(db, "philnic", "", 0, 500)
+    logTransaction(db, req.params.username, req.body.recip, req.body.cc, req.body.cash, function (tf) {
+        res.status(tf).send()
+    })
 })
 
 function getUserTransactions(db, id, callback) {
