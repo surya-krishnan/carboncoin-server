@@ -26,6 +26,7 @@ app.use(function (req, res, next) {
             jwt.verify(req.headers.auth, key)
             console.log("\t\tSuccess")
             next()
+
         } catch (err) {
             console.log("\t\tFailure")
             res.status(403).send()
