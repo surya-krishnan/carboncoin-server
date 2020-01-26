@@ -63,7 +63,7 @@ app.get('/balance', function (req, res) {
 // ****************************************************************************
 // Transactions
 
-function getUserIDBal(db, userID, callback) {
+function getUserID(db, userID, callback) {
     const users = db.collection('users')
 
     users
@@ -74,7 +74,7 @@ function getUserIDBal(db, userID, callback) {
         })
 }
 
-function getUserBal(db, user, callback) {
+function getUser(db, user, callback) {
     const users = db.collection('users')
 
     users
@@ -89,7 +89,7 @@ function logTransaction(db, senderID, recipient, ccTransfer, cashTransfer, callb
     const transactions = db.collection('transactions')
     const users = db.collection('users')
 
-    getUserIDBal(db, senderID, function (acc) {
+    getUserID(db, senderID, function (acc) {
         if (acc.balance >= cashTransfer) {
             console.log("enuff")
             transactions
@@ -113,7 +113,7 @@ function logTransaction(db, senderID, recipient, ccTransfer, cashTransfer, callb
                     },
                     {}, function (err, docs) {
                         console.log("sender updated")
-                        getUserBal(db, recipient, function (acc) {
+                        getUser(db, recipient, function (acc) {
                             users
                                 .updateOne(
                                     {name: recipient},
